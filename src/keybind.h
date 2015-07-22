@@ -9,6 +9,18 @@
 
 typedef void (*key_table_t)( unsigned int );
 
+private key_table_t vkTable[ 9 ] = {
+  CommandNull,		
+  CommandPrevLine, /* VK_UP */
+  CommandNextLine, /* VK_DOWN */
+  CommandPrevHalf, /* VK_LEFT */
+  CommandNextHalf, /* VK_RIGHT */
+  CommandPrevPage,	/* VK_PRIOR */
+  CommandNextPage,	/* VK_NEXT */
+  CommandTopOfFile,	/* VK_HOME */
+  CommandBottomOfFile	/* VK_END */
+};
+
 private key_table_t keyTable[ 128 ] = {
   CommandNull,		/* C-@ */	/* 0/0 */
   CommandNull,		/* C-a */

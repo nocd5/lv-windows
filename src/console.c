@@ -82,9 +82,15 @@ private char *cursor_invisible		= NULL;
 
 #ifdef WINDOWS
 private WORD console_attr = 0;
+private HANDLE keyin_handle = NULL;
 private HANDLE stdout_handle = NULL;
 private HANDLE console_handle = NULL;
 private DWORD initial_mode;
+private COORD initial_size;
+private COORD initial_cursor;
+private SMALL_RECT initial_rect;
+private PCHAR_INFO initial_buffer = NULL; 
+private int sc_height,sc_width;
 #endif
 
 #ifdef UNIX
@@ -225,9 +231,13 @@ public void ConsoleGetWindowSize()
 #ifdef WINDOWS
   CONSOLE_SCREEN_BUFFER_INFO csbi;
   SMALL_RECT rect;
+  COORD coord;
   GetConsoleScreenBufferInfo( console_handle, &csbi );
-  WIDTH = csbi.dwSize.X;
-  HEIGHT = csbi.dwSize.Y - 1;
+  coord.Y = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+  coord.X = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+  SetConsoleScreenBufferSize( console_handle, coord );
+  WIDTH = coord.X;
+  HEIGHT = coord.Y ;
 #endif
 }
 
@@ -286,7 +296,7 @@ public void ConsoleTermInit()
   SMALL_RECT rect;
   rect = csbi.srWindow;
   WIDTH = rect.Right - rect.Left;
-  HEIGHT = rect.Bottom - rect.Top;
+  HEIGHT = rect.Bottom - rect.Top +1;
 #endif /* WINDOWS */
 
 #ifdef TERMCAP
@@ -330,7 +340,6 @@ public void ConsoleTermInit()
 #ifdef TERMINFO
   char *term;
   int state;
-
   if( NULL == (term = getenv( "TERM" )) )
     fprintf( stderr, "lv: environment variable TERM is required\n" ), exit( -1 );
 
@@ -363,23 +372,53 @@ public void ConsoleSetUp()
   CONSOLE_SCREEN_BUFFER_INFO csbi;
   SMALL_RECT rect;
   COORD coord;
+  COORD bufcoord;
+  SMALL_RECT readregion;
   DWORD mode, written;
-  console_handle = CreateConsoleScreenBuffer(
-		  GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-		  NULL, CONSOLE_TEXTMODE_BUFFER, NULL );
+  int cnt;
+  console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+  keyin_handle = CreateFile( 
+				  "CONIN$",
+				  ( GENERIC_READ | GENERIC_WRITE ),
+				  FILE_SHARE_READ,
+				  0,
+				  OPEN_EXISTING,
+				  0,
+				  0 );
+//  console_handle = CreateConsoleScreenBuffer(
+//		  GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+//		  NULL, CONSOLE_TEXTMODE_BUFFER, NULL );
   GetConsoleScreenBufferInfo( console_handle, &csbi );
   console_attr = csbi.wAttributes;
-  rect = csbi.srWindow;
-  coord.X = rect.Right - rect.Left;
-  coord.Y = rect.Bottom - rect.Top;
+  
+  
+  initial_rect = rect = csbi.srWindow;
+  initial_size = csbi.dwSize;
+  coord.Y = sc_height = rect.Bottom - rect.Top + 1;
+  coord.X = sc_width  = rect.Right - rect.Left + 1;
+  initial_cursor = csbi.dwCursorPosition;
+  readregion.Left = 0;
+  readregion.Right = csbi.dwSize.X - 1;
+  if(initial_buffer == NULL){
+		  initial_buffer = (PCHAR_INFO)malloc(sizeof(CHAR_INFO) * csbi.dwSize.X * csbi.dwSize.Y);
+		  bufcoord.X = 0;
+		  for(cnt = 0; cnt < csbi.dwSize.Y; cnt += ( 12000 / csbi.dwSize.X ) -1 ){
+		    
+  			bufcoord.Y = cnt;
+		    readregion.Top = cnt;
+			readregion.Bottom = cnt + ( 12000 / csbi.dwSize.X ) -1;
+			ReadConsoleOutput( console_handle, initial_buffer, initial_size, bufcoord, &readregion); 
+		  }
+  }
+  SetConsoleTextAttribute( console_handle, FOREGROUND_WHITE );
   SetConsoleScreenBufferSize( console_handle, coord );
-  GetConsoleMode( GetStdHandle( STD_INPUT_HANDLE ), &initial_mode );
+  GetConsoleMode( GetStdHandle(STD_INPUT_HANDLE) , &initial_mode );
   mode = initial_mode;
   mode &= ~ENABLE_LINE_INPUT;
   mode &= ~ENABLE_ECHO_INPUT;
   mode &= ~ENABLE_PROCESSED_INPUT;
-  SetConsoleMode( GetStdHandle( STD_INPUT_HANDLE ), mode );
-  SetConsoleActiveScreenBuffer( console_handle );
+  SetConsoleMode( GetStdHandle(STD_INPUT_HANDLE) , mode );
+// SetConsoleActiveScreenBuffer( console_handle );
 #endif
 
 #ifdef UNIX
@@ -436,8 +475,48 @@ public void ConsoleSetDown()
 #endif /* MSDOS */
 
 #ifdef WINDOWS
-  CloseHandle( console_handle );
+  COORD ctmp = initial_size;
+  SMALL_RECT rtmp = initial_rect;
+
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  GetConsoleScreenBufferInfo( console_handle, &csbi );
+
+  SetConsoleTextAttribute( console_handle, console_attr);
+
+  ctmp.Y = csbi.dwSize.Y;
+  rtmp.Top = csbi.srWindow.Top;
+  rtmp.Bottom = csbi.srWindow.Bottom;
+
+  if(csbi.srWindow.Right < initial_size.X){
+	SetConsoleScreenBufferSize( console_handle, ctmp );
+	SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
+  }else{
+	SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
+	SetConsoleScreenBufferSize( console_handle, ctmp );
+	}
+  if(csbi.srWindow.Bottom < initial_size.Y){
+	SetConsoleScreenBufferSize( console_handle, initial_size );
+	SetConsoleWindowInfo( console_handle, TRUE, &initial_rect);
+  }else{
+	SetConsoleWindowInfo( console_handle, TRUE, &initial_rect);
+  	SetConsoleScreenBufferSize( console_handle, initial_size);
+  }
+  if( initial_buffer != NULL ){
+	ctmp.X = ctmp.Y = 0;
+	rtmp.Left = rtmp.Top = 0;
+	rtmp.Right = initial_size.X - 1;
+	rtmp.Bottom = initial_size.Y - 1;
+	WriteConsoleOutput( console_handle, initial_buffer, initial_size, ctmp, &rtmp );
+  	free(initial_buffer);
+  	SetConsoleCursorPosition( console_handle, initial_cursor );
+  }else{
+	ctmp.X = ctmp.Y = 0;
+	ConsoleClearAll();
+  	SetConsoleCursorPosition( console_handle, ctmp );
+  }
+  
   SetConsoleMode( GetStdHandle( STD_INPUT_HANDLE ), initial_mode );
+  CloseHandle( console_handle );
 #endif /* WINDOWS */
 
 #ifdef UNIX
@@ -537,10 +616,55 @@ public void ConsoleSuspend()
 #endif /* SYSV */
 }
 
+#ifdef WINDOWS
+public int ConsoleGetChar(lv_vk *vk){
+	INPUT_RECORD ir;
+	DWORD count=0;
+	for( ; ; ){
+		ReadConsoleInput( keyin_handle , &ir, 1, &count);
+		if (ir.EventType == KEY_EVENT && ir.Event.KeyEvent.bKeyDown)
+			{
+				switch(ir.Event.KeyEvent.wVirtualKeyCode){
+					case VK_UP:
+						*vk = LV_VK_UP;
+						break;
+					case VK_DOWN:
+						*vk = LV_VK_DOWN;
+						break;
+					case VK_LEFT:
+						*vk = LV_VK_LEFT;
+						break;
+					case VK_RIGHT:
+						*vk = LV_VK_RIGHT;
+						break;
+					case VK_PRIOR:
+						*vk = LV_VK_PRIOR;
+						break;
+					case VK_NEXT:
+						*vk = LV_VK_NEXT;
+						break;
+					case VK_HOME:
+						*vk = LV_VK_HOME;
+						break;
+					case VK_END:
+						*vk = LV_VK_END;
+						break;
+					default:
+						*vk = LV_VK_NONE;
+				}
+				if(*vk != LV_VK_NONE){
+					return 0;
+				}
+				int aChar = ir.Event.KeyEvent.uChar.AsciiChar;
+				if(aChar > 0) return aChar;
+			}
+		}
+}
+#else    /* end ifdef WINDOWS */
 public int ConsoleGetChar()
 {
 #if defined(MSDOS) || defined(WINDOWS)
-  return getch();
+		return getch();
 #endif /* MSDOS,WINDOWS */
 
 #ifdef UNIX
@@ -552,9 +676,11 @@ public int ConsoleGetChar()
     return (int)buf;
 #endif /* UNIX */
 }
+#endif /* end else (ifdef WINDOWS) */
 
 public int ConsolePrint( char c )
 {
+
 #ifdef MSDOS
   bdos( 0x06, 0xff != c ? c : 0, 0 );
 #endif /* MSDOS */
@@ -585,6 +711,7 @@ public void ConsolePrints( char *str )
   printf( "%s", str );
 #endif /* UNIX */
 }
+
 
 public void ConsolePrintsStr( str_t *str, int length )
 {
@@ -696,6 +823,26 @@ public void ConsoleClearRight()
   tputs( clr_eol, 1, foo );
 #endif /* UNIX */
 }
+
+
+public void ConsoleClearAll()
+{
+#ifdef WINDOWS
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
+  COORD coord;
+  DWORD size, written;
+  GetConsoleScreenBufferInfo( console_handle, &csbi );
+  size = csbi.dwSize.X * (csbi.srWindow.Bottom - csbi.srWindow.Top +1);
+  coord.X = 0;
+  coord.Y = csbi.srWindow.Top;
+  FillConsoleOutputCharacter( console_handle, ' ', size, coord, &written );
+  FillConsoleOutputAttribute( console_handle,
+    csbi.wAttributes, size, coord, &written );
+  //SetConsoleCursorPosition( console_handle, coord );
+#endif /* WINDOWS */
+}
+
+
 
 public void ConsoleGoAhead()
 {
@@ -900,3 +1047,25 @@ public void ConsoleSetAttribute( char attr )
   prevAttr = attr;
 #endif /* MSDOS */
 }
+
+public void check_winch()
+{
+#ifdef WINDOWS
+    CONSOLE_SCREEN_BUFFER_INFO csbi;
+    COORD size;
+
+    if (console_handle == INVALID_HANDLE_VALUE)
+        return;
+
+    GetConsoleScreenBufferInfo( console_handle, &csbi );
+    size.Y = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+    size.X = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+	
+	if(size.Y != sc_height || size.X != sc_width){
+		  sc_height = size.Y;
+		  sc_width = size.X;
+		  window_changed = TRUE;
+    }
+#endif
+}
+

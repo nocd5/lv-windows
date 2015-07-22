@@ -107,6 +107,7 @@ private i_str_t *CommandGetLine( file_t *f, char prompt )
   int ch, ptr, iptr, width, index;
   i_str_t *istr;
   char str[ STRING_SIZE ];
+  lv_vk vk = 0;
 
   ConsoleGoAhead();
   ConsoleClearRight();
@@ -120,7 +121,28 @@ private i_str_t *CommandGetLine( file_t *f, char prompt )
   width = 0;
   for( ; ; ){
     ConsoleFlush();
-    ch = ConsoleGetChar();
+#ifdef WINDOWS
+    ch = ConsoleGetChar(&vk);
+#else
+	ch = ConsoleGetChar();
+#endif
+	switch( vk ){
+		case LV_VK_UP:
+		case LV_VK_PRIOR:
+			ch = DLE;
+			break;
+		case LV_VK_DOWN:
+		case LV_VK_NEXT:
+			ch = SO;
+			break;
+		case LV_VK_NONE:
+			break;
+		default:
+			continue;
+			break;
+	}
+
+
     switch( ch ){
     case EOF:
     case BEL:
@@ -162,6 +184,14 @@ private i_str_t *CommandGetLine( file_t *f, char prompt )
       iptr = 0;
       istr = NULL;
       width = 0;
+      break;
+	case SO:
+	  if( ++index > HISTORY_SIZE -1 )
+			index = 0;
+      if( FALSE == history[ index ].used )
+		continue;
+      Copy( str, history[ index ].str, history[ index ].length );
+      ptr = history[ index ].length;
       break;
     case DLE:
       if( --index < 0 )
@@ -225,7 +255,7 @@ private i_str_t *CommandRestoreIstr( char codingSystem )
   return Decode( codingSystem, saveStr.str, &length );
 }
 
-private boolean_t CommandGetNumber( unsigned int *number, int *newCom )
+private boolean_t CommandGetNumber( unsigned int *number, int *newCom, lv_vk *vk )
 {
   unsigned int n;
   int ch;
@@ -245,7 +275,16 @@ private boolean_t CommandGetNumber( unsigned int *number, int *newCom )
     ConsolePrints( buf );
 
     ConsoleFlush();
-    ch = ConsoleGetChar();
+#ifdef WINDOWS
+    ch = ConsoleGetChar(vk);
+#else
+	ch = ConsoleGetChar();
+	*vk = 0;
+#endif
+	if( *vk != 0 ){
+	  *number = n;
+	  return TRUE;
+	}
     if( EOF == ch )
       return FALSE;
     else if( BS == ch ){
@@ -645,12 +684,13 @@ private void CommandRegexpDFA( unsigned int arg )
 #endif /* REGEXPTEST */
 
 #include <keybind.h>
+#include <lvvirtkey.h>
 
 public void Command( file_t *file )
 {
   int com;
   unsigned int arg;
-
+  lv_vk vk = 0;
   f = file;
 
   quit = FALSE;
@@ -669,7 +709,10 @@ public void Command( file_t *file )
       label = "Interrupted";
       DisplayFull( f );
     }
-
+	
+	// for systems that do not generate SIGWINCH.
+	check_winch();
+	
     if( TRUE == window_changed ){
       window_changed = FALSE;
       CommandRefresh( 0 );
@@ -714,27 +757,32 @@ public void Command( file_t *file )
     }
 
     ConsoleFlush();
-    com = ConsoleGetChar();
-    if( com < 0x00 || com > 0x7f )
+#ifdef WINDOWS
+    com = ConsoleGetChar(&vk);
+#else
+	com = ConsoleGetChar();
+#endif
+    if( vk == 0 && ( com < 0x00 || com > 0x7f ) )
       continue;
 
     arg = 0;
-    if( IsNumber( com ) ){
+    if( vk == 0 && IsNumber( com ) ){
       arg = com - '0';
-      if( FALSE == CommandGetNumber( &arg, &com ) )
+      if( FALSE == CommandGetNumber( &arg, &com, &vk ) ) 
 	continue;
-      if( com < 0x00 || com > 0x7f )
+      if( vk == 0 && ( com < 0x00 || com > 0x7f ) )
 	continue;
     }
 
     ConsoleGoAhead();
     ConsoleClearRight();
-
-    (*keyTable[ com ])( arg );
+	if( vk == 0 )
+	    (*keyTable[ com ])( arg );
+	else
+		(*vkTable[ vk ])( arg );
 
     if( TRUE == quit )
       break;
   }
-
   FileClose( f );
 }

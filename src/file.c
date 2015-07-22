@@ -263,9 +263,9 @@ public boolean_t FileClose( file_t *f )
 {
   if( NULL == f )
     return FALSE;
-
+  fflush(f->fp);
   FileFreeHead( f );
-
+  
 #ifdef MSDOS
   FarFree( f );
 #else

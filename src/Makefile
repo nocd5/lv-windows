@@ -161,7 +161,7 @@ unirev.$(O): unirev.c unirev.h itable.h uty.h big5.h
 
 command.h: file.h
 	touch $@
-command.$(O): command.c command.h itable.h istr.h encode.h decode.h find.h screen.h console.h display.h position.h version.h dfa.h uty.h fetch.h keybind.h
+command.$(O): command.c command.h itable.h istr.h encode.h decode.h find.h screen.h console.h display.h position.h version.h dfa.h uty.h fetch.h keybind.h lvvirtkey.h
 	$(CC) -c -o $@ $(CFLAGS) command.c
 
 position.h: file.h
@@ -177,7 +177,7 @@ display.h: file.h
 display.$(O): display.c display.h screen.h console.h encode.h fetch.h position.h
 	$(CC) -c -o $@ $(CFLAGS) display.c
 
-console.h: str.h
+console.h: str.h lvvirtkey.h
 	touch $@
 consunix.$(O): console.c console.h ascii.h attr.h
 	$(CC) -c -o $@ $(CFLAGS) console.c

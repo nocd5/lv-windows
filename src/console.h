@@ -9,6 +9,7 @@
 
 #include <boolean.h>
 #include <str.h>
+#include <lvvirtkey.h>
 
 public int WIDTH, HEIGHT;		/* one based */
 
@@ -49,15 +50,21 @@ public void ConsolePrintsStr( str_t *str, int length );
 
 public void ConsoleFlush();
 
+#ifdef WINDOWS
+public int ConsoleGetChar(lv_vk *vk);
+#else
 public int ConsoleGetChar();
+#endif
 
 public void ConsoleSetCur( int x, int y );	/* zero based */
 public void ConsoleOnCur();
 public void ConsoleOffCur();
 public void ConsoleGoAhead();
 public void ConsoleClearRight();
+public void ConsoleClearAll();
 public void ConsoleScrollUp();
 public void ConsoleScrollDown();
 public void ConsoleSetAttribute( char attr );
+public void check_winch();
 
 #endif /* __CONSOLE_H__ */
