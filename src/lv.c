@@ -216,6 +216,7 @@ typedef struct {
   FILE		*sp;
   int		width;
   int		height;
+  boolean_t	noDeinit;
   boolean_t	options;
   char		inputCodingSystem;
   char		outputCodingSystem;
@@ -229,6 +230,7 @@ private void LvConfInit( conf_t *conf )
   conf->sp	= NULL;
   conf->width	= -1;
   conf->height	= -1;
+  conf->noDeinit	= FALSE;
   conf->options	= TRUE;
   conf->inputCodingSystem	= DEFAULT_INPUT_CODING_SYSTEM;
   conf->outputCodingSystem	= DEFAULT_OUTPUT_CODING_SYSTEM;
@@ -280,6 +282,9 @@ private void LvConfArg( conf_t *conf, char **argv, char *location )
       case 'S': SetAnsiSequence( s, location ); break;
       case 'W': conf->width = atoi( s + 1 ); break;
       case 'H': conf->height = atoi( s + 1 ); break;
+#ifdef WINDOWS
+      case 'X': conf->noDeinit = TRUE; s++; break;
+#endif /* WINDOWS */
 #ifndef MSDOS /* IF NOT DEFINED */
       case 'T': unicode_width_threshold = (ic_t)atoi( s + 1 ); break;
       case 'm': unimap_iso8859 = TRUE; s++; continue;
@@ -589,7 +594,7 @@ public int main( int argc, char **argv )
 		 conf->keyboardCodingSystem );
     ConsoleSetUp();
     Command( f );
-    ConsoleSetDown();
+    ConsoleSetDown( conf->noDeinit );
   } else {
     binary_decode = TRUE;
     immediate_print = FALSE;

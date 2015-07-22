@@ -466,7 +466,7 @@ public void ConsoleSetUp()
 #endif /* UNIX */
 }
 
-public void ConsoleSetDown()
+public void ConsoleSetDown( boolean_t noDeinit )
 {
 #ifdef MSDOS
   ConsoleSetCur( 0, HEIGHT - 1 );
@@ -487,32 +487,47 @@ public void ConsoleSetDown()
   rtmp.Top = csbi.srWindow.Top;
   rtmp.Bottom = csbi.srWindow.Bottom;
 
-  if(csbi.srWindow.Right < initial_size.X){
-	SetConsoleScreenBufferSize( console_handle, ctmp );
-	SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
-  }else{
-	SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
-	SetConsoleScreenBufferSize( console_handle, ctmp );
+  if( noDeinit == FALSE ){
+	if(csbi.srWindow.Right < initial_size.X){
+	  SetConsoleScreenBufferSize( console_handle, ctmp );
+	  SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
+	}else{
+	  SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
+	  SetConsoleScreenBufferSize( console_handle, ctmp );
 	}
-  if(csbi.srWindow.Bottom < initial_size.Y){
-	SetConsoleScreenBufferSize( console_handle, initial_size );
-	SetConsoleWindowInfo( console_handle, TRUE, &initial_rect);
+	if(csbi.srWindow.Bottom < initial_size.Y){
+	  SetConsoleScreenBufferSize( console_handle, initial_size );
+	  SetConsoleWindowInfo( console_handle, TRUE, &initial_rect);
+	}else{
+	  SetConsoleWindowInfo( console_handle, TRUE, &initial_rect);
+	  SetConsoleScreenBufferSize( console_handle, initial_size);
+	}
   }else{
-	SetConsoleWindowInfo( console_handle, TRUE, &initial_rect);
-  	SetConsoleScreenBufferSize( console_handle, initial_size);
+	ctmp.Y += initial_size.Y;
+	rtmp.Bottom += initial_rect.Bottom;
+	SetConsoleWindowInfo( console_handle, TRUE, &rtmp);
+	SetConsoleScreenBufferSize( console_handle, ctmp);
   }
+
   if( initial_buffer != NULL ){
-	ctmp.X = ctmp.Y = 0;
-	rtmp.Left = rtmp.Top = 0;
-	rtmp.Right = initial_size.X - 1;
-	rtmp.Bottom = initial_size.Y - 1;
+	if( noDeinit == FALSE ){
+	  ctmp.X = ctmp.Y = 0;
+	  rtmp.Left = rtmp.Top = 0;
+	  rtmp.Right = initial_size.X - 1;
+	  rtmp.Bottom = initial_size.Y - 1;
+	}
 	WriteConsoleOutput( console_handle, initial_buffer, initial_size, ctmp, &rtmp );
-  	free(initial_buffer);
-  	SetConsoleCursorPosition( console_handle, initial_cursor );
+	free(initial_buffer);
+	if( noDeinit == FALSE )
+	  SetConsoleCursorPosition( console_handle, initial_cursor );
+	else
+	  SetConsoleCursorPosition( console_handle, csbi.dwCursorPosition );
   }else{
-	ctmp.X = ctmp.Y = 0;
-	ConsoleClearAll();
-  	SetConsoleCursorPosition( console_handle, ctmp );
+	if( noDeinit == FALSE ){
+	  ctmp.X = ctmp.Y = 0;
+	  ConsoleClearAll();
+	  SetConsoleCursorPosition( console_handle, ctmp );
+	}
   }
   
   SetConsoleMode( GetStdHandle( STD_INPUT_HANDLE ), initial_mode );
