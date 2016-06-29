@@ -283,7 +283,7 @@ private void LvConfArg( conf_t *conf, char **argv, char *location )
       case 'W': conf->width = atoi( s + 1 ); break;
       case 'H': conf->height = atoi( s + 1 ); break;
 #ifdef WINDOWS
-      case 'X': conf->noDeinit = TRUE; s++; break;
+      case 'X': conf->noDeinit = TRUE; s++; continue;
 #endif /* WINDOWS */
 #ifndef MSDOS /* IF NOT DEFINED */
       case 'T': unicode_width_threshold = (ic_t)atoi( s + 1 ); break;
