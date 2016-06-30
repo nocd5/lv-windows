@@ -520,8 +520,11 @@ public void ConsoleSetDown( boolean_t noDeinit )
 	free(initial_buffer);
 	if( noDeinit == FALSE )
 	  SetConsoleCursorPosition( console_handle, initial_cursor );
-	else
-	  SetConsoleCursorPosition( console_handle, csbi.dwCursorPosition );
+	else{
+	  ctmp.X = csbi.dwCursorPosition.X;
+	  ctmp.Y = csbi.dwCursorPosition.Y - 1;
+	  SetConsoleCursorPosition( console_handle, ctmp );
+	}
   }else{
 	if( noDeinit == FALSE ){
 	  ctmp.X = ctmp.Y = 0;
